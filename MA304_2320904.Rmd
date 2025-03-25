@@ -1,0 +1,331 @@
+---
+title: "Data Visualisation Project Report"
+output: 
+  html_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+library(knitr) ; library(tidyverse) ; library(ggplot2) ; library(plotly) ; library(dplyr) ; library(leaflet) ; library(ggcorrplot) ; library(xts) ; library(gridExtra)
+```
+
+
+```{r}
+# Loading the Data
+crime <- read.csv("crime23.csv") ; temp <- read.csv("temp2023.csv")
+
+# Structure of the Dataset
+str(crime) ; str(temp)
+```
+
+```{r}
+temp$SunD1h <- ifelse(temp$SunD1h == 0, NA, temp$SunD1h)
+```
+
+#
+```{r}
+crime_cat_sorted <- crime %>% 
+  group_by(category) %>% 
+  count() %>% 
+  arrange(n) %>% 
+  mutate(category = factor(category, levels = .$category)) 
+
+g1 <- ggplot(crime_cat_sorted, aes(y = category, x = n)) + geom_bar(stat = "identity", aes(fill=category)) + theme_minimal() + theme(legend.position = "none", axis.title = element_text(face = "bold"), title = element_text(face = "bold")) + labs(title = "Fig 1 - Overview Category of Crimes", x = "Number of Crimes", y = "Crime Types")
+
+ggplotly(g1)
+```
+
+
+```{r}
+crime$date_e <- as.character(crime$date)
+crime$month <- as.numeric(substring(crime$date, 6, 7))
+agg_data <- as.data.frame(aggregate(crime$category ~ crime$month + crime$category, data = crime, length))
+colnames(agg_data) <- c("Month_Crime", "Number_crimes" )
+agg_data$Month_Crime <- factor(agg_data$Month_Crime, levels = unique(agg_data$Month_Crime), ordered = TRUE)
+
+g2 <- ggplot(agg_data, aes(x = Month_Crime, y = Number_crimes, fill = Number_crimes)) + geom_bar(stat = "identity", position = "dodge") + labs(title = "Fig 2.1 - Occurrences of Crime Categories per Month", x = "Month", y = "Number of Crimes") + theme_minimal() + scale_fill_gradient(low = "lightblue", high = "darkblue") + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+ggplotly(g2)
+```
+
+
+```{r}
+category_month_freq <- as.data.frame(table(crime$category, crime$month))
+colnames(category_month_freq) <- c("Cat_Crime", "Month","Frequency")
+
+category_month_freq$Month<- factor(category_month_freq$Month, levels = unique(category_month_freq$Month))
+
+g3 <- ggplot(category_month_freq, aes(x = Month, y = Frequency, color = Cat_Crime, group = Cat_Crime)) + geom_line() + labs(title = "Fig 2.2 - Occurrences of Crime Categories per Month", x = "Month", y = "Number of Crimes") + theme_minimal() + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+ggplotly(g3)
+```
+
+
+```{r}
+top_10 <- crime$street_name %>%
+  gsub("On or near ", "", .) %>%
+  table() %>%
+  sort(decreasing = TRUE) %>%
+  head(10) %>%
+  sort() %>%
+  as.data.frame() %>%
+  setNames(c("Area", "Freq"))
+
+ggplot(top_10, aes(y = Area, x = Freq)) + geom_bar(stat = "identity", aes(fill=Area)) + theme_minimal() + theme(legend.position = "none", axis.title = element_text(face = "bold"), title = element_text(face = "bold")) + labs(title = "Fig 3 - Top 10 Streets/Location with hightest crimes", x = "Number of Crimes", y = "Street Names")
+```
+
+
+```{r}
+tidy_outcome <- crime$outcome_status %>%
+  table() %>%
+  sort() %>%
+  as.data.frame() %>%
+  setNames(c("Outcome", "Freq"))
+  
+g5 <- ggplot(tidy_outcome, aes(y = Outcome, x = Freq)) + geom_bar(stat = "identity", aes(fill= Outcome)) + theme_minimal() + theme(legend.position = "none", axis.title = element_text(face = "bold"), title = element_text(face = "bold")) + labs(title = "Fig 4 - Outcomes", x = "Frequency", y = "Outcomes")
+
+ggplotly(g5)
+```
+
+```{r}
+map_data <- crime %>%
+ select(c("lat", "long"))
+
+leaflet(map_data) %>%
+  addTiles() %>%
+  addMarkers(lng = ~ long, lat = ~lat)
+```
+
+
+```{r}
+plot6.1 <- ggplot(temp) + geom_density(aes(x = temp$TemperatureCAvg, fill = "Average Temperature"), alpha = 0.5) + geom_density(aes(x = temp$TemperatureCMax, fill = "Maximum Temperature"), alpha = 0.6) + geom_density(aes(x = temp$TemperatureCMin, fill = "Minimum Temperature"), alpha = 0.4) + scale_fill_manual(values = c("brown", "red", "yellow"), labels = c("Avg Temp", "Max Temp", "Min Temp")) + labs(title = "Fig 5.1 - Temperature Data", x = "Temperature (C)", y = "Density") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+plot6.2 <- ggplot(temp) + geom_histogram(aes(x = temp$TdAvgC), fill = "skyblue") + labs(title = "Fig 5.2 - Average Dew Point", x = "Temperature (C)", y = "Frequency") + theme_minimal() + theme(legend.position = "none", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+grid.arrange(plot6.1, plot6.2, ncol=2)
+```
+
+
+```{r}
+plot6.3 <- ggplot(temp) + geom_histogram(aes(x = temp$HrAvg), fill = "chocolate") + labs(title = "Fig 5.3 - Average Relative Humidity", x = "Percentage (%)", y = "Frequency") + theme_minimal() + theme(legend.position = "none", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+plot6.4 <- ggplot(temp, aes(y = WindkmhDir)) + geom_bar(fill="green4") + theme_minimal() + theme(legend.position = "none", axis.title = element_text(face = "bold"), title = element_text(face = "bold")) + labs(title = "Fig 5.4 - Wind Direction", x = "Frequency", y = "Direction")
+
+grid.arrange(plot6.3, plot6.4, ncol=2)
+```
+
+
+```{r}
+plot6.5 <- ggplot(temp) + geom_density(aes(x = temp$WindkmhInt, fill = "Wind Speed"), alpha = 0.5) + geom_density(aes(x = WindkmhGust, fill = "Wind Gust"), alpha = 0.6) + labs(title = "Fig 5.5 - Wind Intensity & Gust", x = "Speed (km/h)", y = "Density") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+plot6.6 <- ggplot(temp) + geom_histogram(aes(x = temp$PresslevHp), fill = "lightgoldenrod") + labs(title = " Fig 5.6 - Sea Level Pressure", x = "Pressure (hPa)", y = "Frequency") + theme_minimal() + theme(legend.position = "none", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+grid.arrange(plot6.5, plot6.6, ncol=2)
+```
+
+
+```{r}
+plot6.7 <- ggplot(temp) + geom_histogram(aes(x = temp$Precmm), fill = "cadetblue4") + labs(title = "Fig 5.7 - Precipitation", x = "Precipitation (mm)", y = "Frequency") + theme_minimal() + theme(legend.position = "none", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+plot6.8 <- ggplot(temp) + geom_density(aes(x = temp$TotClOct, fill = "Total Cloudiness"), alpha = 0.5) + geom_density(aes(x = lowClOct, fill = "Cloudiness by low level clouds"), alpha = 0.6) +   scale_fill_manual(values = c("orange3", "magenta4"), labels = c("Total Cloudiness", "Cloudiness by low level clouds")) + labs(title = "Fig 5.8 - Cloudiness", x = "Cloudiness (octans)", y = "Density") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+grid.arrange(plot6.7, plot6.8, ncol=2)
+```
+
+
+```{r}
+plot6.9 <- ggplot(temp) + geom_histogram(aes(x = temp$SunD1h), fill = "sandybrown") + labs(title = "Fig 5.9 - Sunshine Duration", x = "Hours", y = "Frequency") + theme_minimal() + theme(legend.position = "none", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+plot6.10 <- ggplot(temp) + geom_histogram(aes(x = temp$VisKm), fill = "darkslategray3") + labs(title = "Fig 5.10 - Visibility", x = "Kilometers", y = "Frequency") + theme_minimal() + theme(legend.position = "none", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+grid.arrange(plot6.9, plot6.10, ncol=2)
+```
+
+
+```{r}
+ggplot(temp, aes(x = TemperatureCAvg, y = TdAvgC, color=TdAvgC)) + geom_point(size = 3) + geom_smooth(method = "lm", se = FALSE, color = "blue") + labs(title = "Fig 6.1 - Avg. Temperature vs. Avg Dew Point", x = "Average Temperature (C)", y = "Avg. Dew Point (C)") + theme_minimal() + scale_color_gradient(low = "yellow", high = "brown") + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+
+```{r}
+ggplot(temp, aes(x = TemperatureCAvg, y = HrAvg, color=HrAvg)) + geom_point(size = 3) + geom_smooth(method = "lm", se = FALSE, color = "blue") +  labs(title = "Fig 6.2 - Avg. Temperature vs. Avg. Realtive Humidity", x = "Average Temperature (C)", y = "Avg. Relative Humidity (%)") + theme_minimal() + scale_color_gradient(low = "yellow", high = "brown") + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+
+```{r}
+ggplot(temp, aes(x = TemperatureCAvg, y = WindkmhInt, color=WindkmhInt)) + geom_point(size = 3) + geom_smooth(method = "lm", se = FALSE, color = "blue") +  labs(title = "Fig 6.3 - Avg. Temperature vs. Wind Intensity", x = "Average Temperature (C)", y = "Wind Intensity (km/h)") + theme_minimal() + scale_color_gradient(low = "yellow", high = "brown") + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+
+```{r}
+ggplot(temp, aes(x = TemperatureCAvg, y = WindkmhGust, color=WindkmhGust)) + geom_point(size = 3) + geom_smooth(method = "lm", se = FALSE, color = "blue") +  labs(title = "Fig 6.4 - Avg. Temperature vs. Wind Gust", x = "Average Temperature (C)", y = "Wind Gust (km/h)") + theme_minimal() + scale_color_gradient(low = "yellow", high = "brown") + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+
+
+```{r}
+ggplot(temp, aes(x = TemperatureCAvg, y = PresslevHp, color=PresslevHp)) + geom_point(size = 3) + geom_smooth(method = "lm", se = FALSE, color = "blue") +  labs(title = "Fig 6.5 Avg. Temperature vs. Sea Level Pressure", x = "Average Temperature (C)", y = "Sea Level Pressure (hpa)") + theme_minimal() + scale_color_gradient(low = "yellow", high = "brown") + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+
+```{r}
+ggplot(temp, aes(x = TemperatureCAvg, y = Precmm, color=Precmm)) + geom_point(size = 3) + geom_smooth(method = "lm", se = FALSE, color = "blue") + labs(title = "Fig 6.6 - Avg. Temperature vs. Precipitation", x = "Average Temperature (C)", y = "Precipitation (mm)") + theme_minimal() + scale_color_gradient(low = "yellow", high = "brown") + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+
+```{r}
+ggplot(temp, aes(x = TemperatureCAvg, y = TotClOct, color=TotClOct)) + geom_point(size = 3) + geom_smooth(method = "lm", se = FALSE, color = "blue") +  labs(title = "Fig 6.7 Avg. Temperature vs. Total Cloudiness", x = "Average Temperature (C)", y = "Total Cloudiness (Octanes)") + theme_minimal() + scale_color_gradient(low = "yellow", high = "brown") + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+
+```{r}
+ggplot(temp, aes(x = TemperatureCAvg, y = lowClOct, color=lowClOct)) + geom_point(size = 3) + geom_smooth(method = "lm", se = FALSE, color = "blue") +  labs(title = "Fig 6.8 - Avg. Temperature vs. Cloudiness by Low Level Clouds", x = "Average Temperature (C)", y = "Cloudiness by Low Level Clouds (Octanes)") + theme_minimal() + scale_color_gradient(low = "yellow", high = "brown") + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+```
+
+
+```{r}
+ggplot(temp, aes(x = TemperatureCAvg, y = SunD1h, color=SunD1h)) + geom_point(size = 3) + geom_smooth(method = "lm", se = FALSE, color = "blue") + labs(title = "Fig 6.9 - Avg. Temperature vs. Sunshine Duration", x = "Average Temperature (C)", y = "Duration (hours)") + theme_minimal() + scale_color_gradient(low = "yellow", high = "brown") + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+
+```{r}
+ggplot(temp, aes(x = TemperatureCAvg, y = VisKm, color=VisKm)) + geom_point(size = 3) + geom_smooth(method = "lm", se = FALSE, color = "blue") +  labs(title = "Fig 6.10 - Avg. Temperature vs. Visibility", x = "Average Temperature (C)", y = "Visibility (km)") + theme_minimal() + scale_color_gradient(low = "yellow", high = "brown") + theme(legend.position = "right", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+
+```{r}
+extract_numbers <- function(x) {
+  pattern <- "-?\\d+\\.\\d+"
+  numbers <- regmatches(x, gregexpr(pattern, x))
+  unlist(numbers)
+}
+
+sum_tab <- summary(temp)
+sum_tab_data <- apply(sum_tab, 2, extract_numbers)
+sum_tab_data1 <- do.call(rbind, sum_tab_data)
+colnames(sum_tab_data1) <- c("Minimum", "Q1", "Median", "Mean", "Q3", "Maximum") 
+
+kable(sum_tab_data1)
+```
+
+
+```{r}
+plot1 <- ggplot(temp, aes(x = factor(1), y = TemperatureCAvg, fill = "TemperatureCAvg")) + geom_boxplot(fill = "brown") +  labs(title = "Fig 7.1 - Avgerage Temperature", x = "", y = "Temperature (C)") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+plot2 <- ggplot(temp, aes(x = factor(1), y = TdAvgC, fill = "TdAvgC")) + geom_boxplot(fill = "skyblue") +  labs(title = "Fig 7.2 - Average Dew Point", x = "", y = "Temperature (C)",  fill = "") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+
+```{r}
+plot3 <- ggplot(temp, aes(x = factor(1), y = HrAvg, fill = "HrAvg")) + geom_boxplot(fill = "chocolate") +  labs(title = "Fig 7.3 -vAverage Realtive Humidity", x = "", y = "Percentage (%)", fill = "") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+plot4 <- ggplot(temp, aes(x = factor(1), y = WindkmhInt, fill = "WindkmhInt")) + geom_boxplot(fill = "firebrick4") + labs(title = "Fig 7.4 - Wind Intensity", x = "", y = "Speed (km/h)", fill = "") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+grid.arrange(plot3, plot4, ncol = 2)
+```
+
+
+```{r}
+plot5 <- ggplot(temp, aes(x = factor(1), y = WindkmhGust, fill = "WindkmhGust")) + geom_boxplot(fill = "#21908C") + labs(title = "Fig 7.5 - Wind Gust", x = "", y = "Speed (km/h)", fill = "") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+plot6 <- ggplot(temp, aes(x = factor(1), y = PresslevHp, fill = "PresslevHp")) + geom_boxplot(fill = "lightgoldenrod") + labs(title = "Fig 7.6 - Sea Level Pressure", x = "", y = "Pressure (hPa)", fill = "") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+grid.arrange(plot5, plot6, ncol = 2)
+```
+
+
+```{r}
+plot7 <- ggplot(temp, aes(x = factor(1), y = Precmm, fill = "Precmm")) + geom_boxplot(fill = "cadetblue4") + labs(title = "Fig 7.7 - Precipitation", x = "", y = "Percipitation (mm)") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+plot8 <- ggplot(temp, aes(x = factor(1), y = TotClOct, fill = "TotClOct")) + geom_boxplot(fill = "orange3") + labs(title = "Fig 7.8 - Total Coludiness", x = "", y = "Cloudiness (octanes)") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+grid.arrange(plot7, plot8, ncol = 2)
+```
+
+```{r}
+plot9 <- ggplot(temp, aes(x = factor(1), y = lowClOct, fill = "lowClOct")) + geom_boxplot(fill = "magenta4") + labs(title = "Fig 7.9 - Cloudiness in Low Level Clouds", x = "", y = "Cloudiness (octanes)") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+plot10 <- ggplot(temp, aes(x = factor(1), y = SunD1h, fill = "SunD1h")) + geom_boxplot(fill = "sandybrown") + labs(title = "Fig 7.10 Sunlight Duration", x = "", y = "Hours") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+grid.arrange(plot9, plot10, ncol = 2)
+```
+
+
+```{r}
+plot11 <- ggplot(temp, aes(x = factor(1), y = VisKm, fill = "VisKm")) + geom_boxplot(fill = "darkslategray3") +  labs(title = "Fig 7.11 - Visibility", x = "", y = "Kilometers") + theme_minimal() + theme(axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+grid.arrange(plot11, ncol = 2)
+```
+
+
+```{r}
+subset_data <- temp[, c("TemperatureCAvg", "TdAvgC",	"HrAvg", "WindkmhInt", "WindkmhGust", "PresslevHp", "Precmm", "TotClOct",	"lowClOct",	"SunD1h",	"VisKm")]
+
+clean_data <- na.omit(subset_data) ; corr_plot <- cor(clean_data)
+
+g7 <- ggcorrplot(corr_plot, type = "full", outline.col = "white", lab = FALSE) + ggtitle("Fig 8 - Correlation Plot of Variables") + theme( title = element_text(face = "bold"))
+
+ggplotly(g7)
+```
+
+```{r}
+time_data <- temp %>%
+  select(Date, TemperatureCAvg, TdAvgC, HrAvg,	WindkmhInt,	WindkmhGust,	PresslevHp,	Precmm,	TotClOct,	lowClOct,	SunD1h,	VisKm)
+
+time_data$Date <- as.POSIXct(time_data$Date) ; time_series <- xts(time_data$TemperatureCAvg, order.by = time_data$Date)
+
+ggplot(time_data, aes(x = Date, y = TemperatureCAvg)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.1 - Average Temperature", x = "Date", y = "Temperature (C)") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+```{r}
+ggplot(time_data, aes(x = Date, y = TdAvgC)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.2 - Average Dew Point", x = "Date", y = "Temperature (C)") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+```{r}
+ggplot(time_data, aes(x = Date, y = HrAvg)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.3 - Average Relative Humidity", x = "Date", y = "Percentage (%)") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+```{r}
+ggplot(time_data, aes(x = Date, y = WindkmhInt)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.4 - Wind Intensity", x = "Date", y = "Speed (km/h)") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+```{r}
+ggplot(time_data, aes(x = Date, y = WindkmhGust)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.5 - Wind Gust", x = "Date", y = "Speed (km/h)") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+```
+
+```{r}
+ggplot(time_data, aes(x = Date, y = PresslevHp)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.6 - Sea Level Pressure", x = "Date", y = "Pressure (hPa)") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+```{r}
+ggplot(time_data, aes(x = Date, y = Precmm)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.7 - Precipitation", x = "Date", y = "Precipitation (mm)") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+```{r}
+ggplot(time_data, aes(x = Date, y = TotClOct)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.8 - Total Cloudiness", x = "Date", y = "Cloudiness (octanes)") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+
+```
+
+```{r}
+ggplot(time_data, aes(x = Date, y = lowClOct)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.9 - Cloudiness by Lower Clouds", x = "Date", y = "Cloudiness (octanes)") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+```{r}
+ggplot(time_data, aes(x = Date, y = SunD1h)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.10 - Sunshine Duration", x = "Date", y = "Hours") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+```{r}
+ggplot(time_data, aes(x = Date, y = VisKm)) + geom_line() + geom_smooth(method = "loess", se = FALSE) + labs(title = "Fig 9.11 - Visibility", x = "Date", y = "Kilometers") + theme_minimal() + theme(legend.position = "bottom", axis.title = element_text(face = "bold"), title = element_text(face = "bold"))
+```
+
+
+
+
+
+
+
